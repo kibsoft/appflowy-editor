@@ -27,7 +27,10 @@ extension EditorCopyPaste on EditorState {
         ...node.children.map((e) => e.deepCopy()),
       ];
       insertedNode = insertedNode.copyWith(children: combinedChildren);
-      transaction.insertNode(selection.end.path, insertedNode);
+      // Insert at path.next then delete: insert-before at [0] would place new
+      // at [0], then delete [0] would remove it; insert at [1] then delete [0]
+      // correctly replaces empty with content
+      transaction.insertNode(selection.end.path.next, insertedNode);
       transaction.deleteNode(node);
       transaction.afterSelection = Selection.collapsed(
         Position(
@@ -103,9 +106,8 @@ extension EditorCopyPaste on EditorState {
       nodes.last.insert(child);
     }
 
-    transaction.insertNodes(selection.end.path, nodes);
-
-    // delete the current node.
+    // Insert at path.next then delete: correctly replaces current node
+    transaction.insertNodes(node.path.next, nodes);
     transaction.deleteNode(node);
 
     final path = calculatePath(selection.start.path, nodes);

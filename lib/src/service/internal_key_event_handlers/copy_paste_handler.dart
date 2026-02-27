@@ -200,6 +200,9 @@ void _pasteSingleLineInText(
   }
   final insertedDelta = insertedNode.delta;
   if (delta.isEmpty || insertedDelta == null) {
+    // Insert at path.next then delete: insert-before at [0] would place new
+    // at [0], then delete [0] would remove it; insert at [1] then delete [0]
+    // correctly replaces empty with content
     transaction.insertNode(selection.end.path.next, insertedNode);
     transaction.deleteNode(node);
     final length = insertedNode.delta?.length ?? 0;
@@ -233,6 +236,24 @@ void _pasteMultipleLinesInText(
       transaction.afterSelection = afterSelection;
       transaction.insertNodes(afterSelection.end.path, nodes);
       editorState.apply(transaction);
+    }
+
+    // When current node is empty, insert at path.next then delete
+    final delta = node.delta;
+    if (delta != null && delta.isEmpty) {
+      transaction.insertNodes(selection.end.path.next, nodes);
+      transaction.deleteNode(node);
+      // After insert+delete, last node is at [0 + nodes.length - 1]
+      final lastPath = [...selection.end.path];
+      lastPath[lastPath.length - 1] += nodes.length - 1;
+      transaction.afterSelection = Selection.collapsed(
+        Position(
+          path: lastPath,
+          offset: _textLengthOfNode(nodes.last),
+        ),
+      );
+      editorState.apply(transaction);
+      return;
     }
 
     final (firstNode, afterNode) = sliceNode(node, offset);
