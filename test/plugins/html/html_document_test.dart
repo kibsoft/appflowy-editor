@@ -368,4 +368,45 @@ void main() {
       ],
     );
   });
+
+  test('BR inside paragraph preserves line breaks', () {
+    const html = '<p>Thanks,<br/>Precious.<br/>Team</p>';
+    final document = htmlToDocument(html);
+    expect(document.root.children.length, 1);
+    expect(
+      document.nodeAtPath([0])!.delta!.toPlainText(),
+      'Thanks,\nPrecious.\nTeam',
+    );
+  });
+
+  test('BR in spans preserves line breaks', () {
+    const html =
+        '<p><span>Thanks,</span><span><br/></span><span>Precious.</span></p>';
+    final document = htmlToDocument(html);
+    expect(document.root.children.length, 1);
+    expect(
+      document.nodeAtPath([0])!.delta!.toPlainText(),
+      'Thanks,\nPrecious.',
+    );
+  });
+
+  test('div with p does not create empty paragraph', () {
+    const html = '<div><p>Content</p></div>';
+    final document = htmlToDocument(html);
+    expect(document.root.children.length, 1);
+    expect(document.nodeAtPath([0])!.type, ParagraphBlockKeys.type);
+    expect(document.nodeAtPath([0])!.delta!.toPlainText(), 'Content');
+  });
+
+  test('standalone BR between paragraphs', () {
+    const html = '<p>A</p><br/><p>B</p>';
+    final document = htmlToDocument(html);
+    // BR creates newline content; verify A, B, and newline are all present
+    final allText = document.root.children
+        .map((n) => n.delta?.toPlainText() ?? '')
+        .join();
+    expect(allText, contains('A'));
+    expect(allText, contains('B'));
+    expect(allText, contains('\n'));
+  });
 }

@@ -46,6 +46,16 @@ class DocumentHTMLDecoder extends Converter<String, Document> {
       );
   }
 
+  /// Extracts text from a DOM node, inserting newlines for br elements.
+  String _getTextWithNewlines(dom.Node node) {
+    if (node is dom.Element) {
+      if (node.localName == HTMLTags.br) return '\n';
+      return node.nodes.map(_getTextWithNewlines).join();
+    }
+    if (node is dom.Text) return node.text;
+    return '';
+  }
+
   Iterable<Node> _parseElement(
     Iterable<dom.Node> domNodes, {
     String? type,
@@ -60,14 +70,16 @@ class DocumentHTMLDecoder extends Converter<String, Document> {
 
           ///This is used for temporarily handling documents copied from Google Docs,
           /// see [#6808](https://github.com/AppFlowy-IO/AppFlowy/issues/6808).
-          final isMeaninglessTag =
-              style == 'font-weight:normal;' && localName == HTMLTags.bold;
+          final isMeaninglessTag = style == 'font-weight:normal;' && localName == HTMLTags.bold;
           if (isMeaninglessTag && domNode.children.isNotEmpty) {
             nodes.addAll(_parseElement(domNode.children));
           } else {
             final attributes = _parserFormattingElementAttributes(domNode);
-            delta.insert(domNode.text, attributes: attributes);
+            final text = _getTextWithNewlines(domNode);
+            delta.insert(text, attributes: attributes);
           }
+        } else if (localName == HTMLTags.br) {
+          delta.insert('\n');
         } else if (HTMLTags.specialElements.contains(localName)) {
           if (delta.isNotEmpty) {
             nodes.add(paragraphNode(delta: delta));
@@ -389,6 +401,9 @@ class DocumentHTMLDecoder extends Converter<String, Document> {
 
   Iterable<Node> _parseParagraphElement(dom.Element element) {
     final (delta, specialNodes) = _parseDeltaElement(element);
+    if (delta.isEmpty && specialNodes.isNotEmpty) {
+      return specialNodes;
+    }
     return [paragraphNode(delta: delta), ...specialNodes];
   }
 
@@ -413,7 +428,9 @@ class DocumentHTMLDecoder extends Converter<String, Document> {
 
     for (final child in children) {
       if (child is dom.Element) {
-        if (child.children.isNotEmpty &&
+        if (child.localName == HTMLTags.br) {
+          delta.insert('\n');
+        } else if (child.children.isNotEmpty &&
             HTMLTags.formattingElements.contains(child.localName) == false &&
             HTMLTags.specialElements.contains(child.localName) == false) {
           //rich editor for webs do this so handling that case for href  <a href="https://www.google.com" rel="noopener noreferrer" target="_blank"><strong><em><u>demo</u></em></strong></a>
@@ -433,10 +450,8 @@ class DocumentHTMLDecoder extends Converter<String, Document> {
             );
           } else {
             final attributes = _parserFormattingElementAttributes(child);
-            delta.insert(
-              child.text.replaceAll(RegExp(r'\n+$'), ''),
-              attributes: attributes,
-            );
+            final text = _getTextWithNewlines(child);
+            delta.insert(text, attributes: attributes);
           }
         }
       } else {
