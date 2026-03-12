@@ -229,29 +229,39 @@ class _IOSDragHandle extends _IDragHandle {
       offset = -ballWidth;
     }
 
-    child = GestureDetector(
+    child = RawGestureDetector(
       behavior: HitTestBehavior.opaque,
-      dragStartBehavior: DragStartBehavior.down,
-      onPanStart: (details) {
-        editorState.service.selectionService.onPanStart(
-          details.translate(0, offset),
-          handleType.dragMode,
-        );
-        onDragging?.call(true);
-      },
-      onPanUpdate: (details) {
-        editorState.service.selectionService.onPanUpdate(
-          details.translate(0, offset),
-          handleType.dragMode,
-        );
-        onDragging?.call(true);
-      },
-      onPanEnd: (details) {
-        editorState.service.selectionService.onPanEnd(
-          details,
-          handleType.dragMode,
-        );
-        onDragging?.call(false);
+      gestures: {
+        PanGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<PanGestureRecognizer>(
+          () => PanGestureRecognizer()
+            ..dragStartBehavior = DragStartBehavior.down
+            ..gestureSettings = const DeviceGestureSettings(touchSlop: 8.0),
+          (recognizer) {
+            recognizer
+              ..onStart = (d) {
+                editorState.service.selectionService.onPanStart(
+                  d.translate(0, offset),
+                  handleType.dragMode,
+                );
+                onDragging?.call(true);
+              }
+              ..onUpdate = (d) {
+                editorState.service.selectionService.onPanUpdate(
+                  d.translate(0, offset),
+                  handleType.dragMode,
+                );
+                onDragging?.call(true);
+              }
+              ..onEnd = (d) {
+                editorState.service.selectionService.onPanEnd(
+                  d,
+                  handleType.dragMode,
+                );
+                onDragging?.call(false);
+              };
+          },
+        ),
       },
       child: child,
     );
@@ -338,33 +348,43 @@ class _AndroidDragHandle extends _IDragHandle {
       ],
     );
 
-    child = GestureDetector(
+    child = RawGestureDetector(
       behavior: HitTestBehavior.opaque,
-      dragStartBehavior: DragStartBehavior.down,
-      onPanStart: (details) {
-        selection = editorState.service.selectionService.onPanStart(
-          details.translate(0, -ballWidth),
-          handleType.dragMode,
-        );
-        onDragging?.call(true);
-      },
-      onPanUpdate: (details) {
-        final selection = editorState.service.selectionService.onPanUpdate(
-          details.translate(0, -ballWidth),
-          handleType.dragMode,
-        );
-        if (this.selection != selection) {
-          HapticFeedback.selectionClick();
-        }
-        this.selection = selection;
-        onDragging?.call(true);
-      },
-      onPanEnd: (details) {
-        editorState.service.selectionService.onPanEnd(
-          details,
-          handleType.dragMode,
-        );
-        onDragging?.call(false);
+      gestures: {
+        PanGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<PanGestureRecognizer>(
+          () => PanGestureRecognizer()
+            ..dragStartBehavior = DragStartBehavior.down
+            ..gestureSettings = const DeviceGestureSettings(touchSlop: 8.0),
+          (recognizer) {
+            recognizer
+              ..onStart = (d) {
+                selection = editorState.service.selectionService.onPanStart(
+                  d.translate(0, -ballWidth),
+                  handleType.dragMode,
+                );
+                onDragging?.call(true);
+              }
+              ..onUpdate = (d) {
+                final selection = editorState.service.selectionService.onPanUpdate(
+                  d.translate(0, -ballWidth),
+                  handleType.dragMode,
+                );
+                if (this.selection != selection) {
+                  HapticFeedback.selectionClick();
+                }
+                this.selection = selection;
+                onDragging?.call(true);
+              }
+              ..onEnd = (d) {
+                editorState.service.selectionService.onPanEnd(
+                  d,
+                  handleType.dragMode,
+                );
+                onDragging?.call(false);
+              };
+          },
+        ),
       },
       child: child,
     );
