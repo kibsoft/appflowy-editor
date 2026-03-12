@@ -699,34 +699,79 @@ class _MobileSelectionServiceWidgetState
     final offset = details.globalPosition;
     _panStartOffset = offset;
     _panStartScrollDy = editorState.service.scrollService?.dy;
-    dragMode = MobileSelectionDragMode.cursor;
+    final node = getNodeInOffset(offset);
+    // select word boundary closest to offset (Safari-style, same as Android)
+    final selection = node?.selectable?.getWordBoundaryInOffset(offset);
+    if (selection == null) {
+      clearSelection();
 
-    // make a collapsed selection at offset with magnifier
-    final position = getPositionInOffset(offset);
-    if (position == null) {
       return;
     }
 
-    final selection = Selection.collapsed(position);
+    if (editorState.editorStyle.enableHapticFeedbackOnAndroid) {
+      HapticFeedback.mediumImpact();
+    }
+
+    dragMode = MobileSelectionDragMode.cursor;
+    _panStartSelection = selection;
     _lastPanOffset.value = offset;
-    updateSelection(selection);
+
+    editorState.updateSelectionWithReason(
+      selection,
+      reason: SelectionUpdateReason.uiEvent,
+      extraInfo: {
+        selectionExtraInfoDisableFloatingToolbar: true,
+      },
+    );
   }
 
   void _onLongPressUpdateIOS(LongPressMoveUpdateDetails details) {
     if (_panStartOffset == null || _panStartScrollDy == null) {
       return;
     }
-
-    // make a collapsed selection at offset with magnifier
-    final offset = details.globalPosition;
-    final position = getPositionInOffset(offset);
-    if (position == null) {
+    if (editorState.selection == null ||
+        dragMode == MobileSelectionDragMode.none) {
       return;
     }
 
-    final selection = Selection.collapsed(position);
+    final offset = details.globalPosition;
     _lastPanOffset.value = offset;
-    updateSelection(selection);
+
+    final wordBoundary =
+        getNodeInOffset(offset)?.selectable?.getWordBoundaryInOffset(offset);
+
+    Selection? newSelection;
+
+    // extend selection from _panStartSelection to word boundary closest to offset
+    if (wordBoundary != null) {
+      if (wordBoundary.end.path > _panStartSelection!.end.path ||
+          wordBoundary.end.path.equals(_panStartSelection!.end.path) &&
+              wordBoundary.end.offset > _panStartSelection!.end.offset) {
+        newSelection = Selection(
+          start: _panStartSelection!.start,
+          end: wordBoundary.end,
+        ).normalized;
+      } else if (wordBoundary.start.path < _panStartSelection!.start.path ||
+          wordBoundary.start.path.equals(_panStartSelection!.start.path) &&
+              wordBoundary.start.offset < _panStartSelection!.start.offset) {
+        newSelection = Selection(
+          start: wordBoundary.start,
+          end: _panStartSelection!.end,
+        ).normalized;
+      } else {
+        newSelection = _panStartSelection;
+      }
+    }
+
+    if (newSelection != null) {
+      editorState.updateSelectionWithReason(
+        newSelection,
+        reason: SelectionUpdateReason.uiEvent,
+        extraInfo: {
+          selectionExtraInfoDisableFloatingToolbar: true,
+        },
+      );
+    }
   }
 
   void _onLongPressEndIOS(LongPressEndDetails details) {
