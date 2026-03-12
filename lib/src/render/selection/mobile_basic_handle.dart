@@ -355,7 +355,7 @@ class _AndroidDragHandle extends _IDragHandle {
             GestureRecognizerFactoryWithHandlers<PanGestureRecognizer>(
           () => PanGestureRecognizer()
             ..dragStartBehavior = DragStartBehavior.down
-            ..gestureSettings = const DeviceGestureSettings(touchSlop: 8.0),
+            ..gestureSettings = const DeviceGestureSettings(touchSlop: 4.0),
           (recognizer) {
             recognizer
               ..onStart = (d) {
