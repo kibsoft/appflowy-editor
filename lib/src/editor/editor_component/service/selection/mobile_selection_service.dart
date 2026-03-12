@@ -789,6 +789,11 @@ class _MobileSelectionServiceWidgetState
   }
 
   void _onTapUpAndroid(TapUpDetails details) {
+    if (!editorState.editable) {
+      updateSelection(null);
+      return;
+    }
+
     final offset = details.globalPosition;
 
     clearSelection();
