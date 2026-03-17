@@ -61,7 +61,7 @@ class DocumentHTMLDecoder extends Converter<String, Document> {
     Iterable<dom.Node> domNodes, {
     String? type,
   }) {
-    final delta = Delta();
+    var delta = Delta();
     final List<Node> nodes = [];
     for (final domNode in domNodes) {
       if (domNode is dom.Element) {
@@ -83,7 +83,9 @@ class DocumentHTMLDecoder extends Converter<String, Document> {
           delta.insert('\n');
         } else if (HTMLTags.specialElements.contains(localName)) {
           if (delta.isNotEmpty) {
-            nodes.add(paragraphNode(delta: delta));
+            nodes.add(
+                delta.toPlainText().trim().isEmpty ? paragraphNode() : paragraphNode(delta: delta));
+            delta = Delta();
           }
           nodes.addAll(
             _parseSpecialElements(
@@ -93,7 +95,9 @@ class DocumentHTMLDecoder extends Converter<String, Document> {
           );
         } else if (customDecoders.containsKey(localName)) {
           if (delta.isNotEmpty) {
-            nodes.add(paragraphNode(delta: delta));
+            nodes.add(
+                delta.toPlainText().trim().isEmpty ? paragraphNode() : paragraphNode(delta: delta));
+            delta = Delta();
           }
           nodes.addAll(
             customDecoders[localName]!(domNode, _parseDeltaElement),
@@ -110,7 +114,7 @@ class DocumentHTMLDecoder extends Converter<String, Document> {
       }
     }
     if (delta.isNotEmpty) {
-      nodes.add(paragraphNode(delta: delta));
+      nodes.add(delta.toPlainText().trim().isEmpty ? paragraphNode() : paragraphNode(delta: delta));
     }
 
     return nodes;
@@ -433,6 +437,10 @@ class DocumentHTMLDecoder extends Converter<String, Document> {
     final (delta, specialNodes) = _parseDeltaElement(element);
     if (delta.isEmpty && specialNodes.isNotEmpty) {
       return specialNodes;
+    }
+    // Div with only <br /> produces delta "\n" — use empty paragraph to avoid double line break
+    if (delta.length == 1 && delta.toPlainText() == '\n' && specialNodes.isEmpty) {
+      return [paragraphNode()];
     }
     return [paragraphNode(delta: delta), ...specialNodes];
   }
