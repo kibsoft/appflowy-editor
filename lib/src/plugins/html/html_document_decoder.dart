@@ -22,6 +22,180 @@ class DocumentHTMLDecoder extends Converter<String, Document> {
   // Set to true to enable parsing color from HTML
   static bool enableColorParse = true;
 
+  /// Block-level tags that prevent a div from being "simple" (inline-only).
+  static const _blockTags = {
+    'div', 'p', 'table', 'ul', 'ol', 'blockquote', 'section',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  };
+
+  /// Returns true if [element] is a div that contains only inline content.
+  bool _isSimpleDiv(dom.Element element) {
+    if (element.localName?.toLowerCase() != 'div') return false;
+    for (final child in element.children) {
+      if (_blockTags.contains(child.localName?.toLowerCase())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Returns true when consecutive divs [div1] and [div2] should be merged.
+  /// Email clients (Outlook, Word) use <div>line1</div><div>line2</div> for
+  /// line breaks within one logical paragraph.
+  bool _shouldMergeConsecutiveDivs(dom.Element div1, dom.Element div2) {
+    if (!_isSimpleDiv(div1) || !_isSimpleDiv(div2)) return false;
+    final t1 = div1.text.trim();
+    final t2 = div2.text.trim();
+    if (t1.isEmpty || t2.isEmpty) return false;
+    // Merge list items: div2 starts with same prefix as div1 (e.g. "Plan A" + "Plan B")
+    final firstWord = t1.split(RegExp(r'\s+')).firstOrNull;
+    if (firstWord != null &&
+        firstWord.length >= 2 &&
+        t2.startsWith(firstWord)) {
+      return true;
+    }
+    // Merge postscript continuation: div2 starts with "X.Y.Z." (e.g. P.P.S., N.B.)
+    if (RegExp(r'^[A-Za-z]\.[A-Za-z]\.[A-Za-z]\.').hasMatch(t2)) return true;
+    return false;
+  }
+
+  /// Returns true when div1 (simple, ends with ?) and div2 (has text + nested block)
+  /// should be merged. Email clients often split question + instruction into
+  /// separate divs where div2 contains both text and a nested block (e.g. signature).
+  bool _shouldMergeWithDivContainingBlock(dom.Element div1, dom.Element div2) {
+    if (div1.localName?.toLowerCase() != 'div' || div2.localName?.toLowerCase() != 'div') {
+      return false;
+    }
+    if (!_isSimpleDiv(div1)) return false;
+    if (div2.children.isEmpty) return false;
+    final firstBlock = div2.children.firstWhere(
+      (c) => c is dom.Element && _blockTags.contains((c as dom.Element).localName?.toLowerCase()),
+      orElse: () => div2,
+    );
+    if (firstBlock == div2) return false;
+    final t1 = div1.text.trim();
+    if (t1.isEmpty || !t1.endsWith('?')) return false;
+    final textBeforeBlock = div2.nodes
+        .takeWhile((n) => n != firstBlock)
+        .map((n) => n is dom.Text ? n.text : (n is dom.Element && n.localName == 'br' ? '\n' : ''))
+        .join()
+        .trim();
+    return textBeforeBlock.isNotEmpty;
+  }
+
+  /// Merges div1 (simple) with the text part of div2 (text + nested block).
+  /// Replaces div1 with merged div, replaces div2 with just its block children.
+  void _mergeSimpleWithDivContainingBlock(
+    dom.Element parent,
+    dom.Element div1,
+    dom.Element div2,
+  ) {
+    final firstBlockIndex = div2.nodes.toList().indexWhere(
+          (n) => n is dom.Element && _blockTags.contains((n as dom.Element).localName?.toLowerCase()),
+        );
+    if (firstBlockIndex < 0) return;
+
+    final merged = dom.Element.tag('div');
+    for (final node in div1.nodes) {
+      merged.append(node.clone(true));
+    }
+    merged.append(dom.Element.tag('br'));
+    var textEnd = firstBlockIndex;
+    while (textEnd > 0) {
+      final n = div2.nodes.elementAt(textEnd - 1);
+      if (n is dom.Element && n.localName == 'br') {
+        textEnd--;
+      } else {
+        break;
+      }
+    }
+    for (var i = 0; i < textEnd; i++) {
+      final n = div2.nodes.elementAt(i);
+      merged.append(n.clone(true));
+    }
+
+    div1.remove();
+    final blockChildren = div2.nodes.toList().skip(firstBlockIndex).whereType<dom.Element>().toList();
+    if (blockChildren.length == 1) {
+      parent.insertBefore(merged, div2);
+      div2.replaceWith(blockChildren.first);
+    } else {
+      parent.insertBefore(merged, div2);
+      for (final block in blockChildren) {
+        block.remove();
+        parent.insertBefore(block, div2);
+      }
+      div2.remove();
+    }
+  }
+
+  /// Merges consecutive simple divs in [element]'s children so they become
+  /// one div with <br /> between. Modifies DOM in place.
+  void _mergeConsecutiveSimpleDivs(dom.Element element) {
+    for (final child in element.children.toList()) {
+      if (child is dom.Element) {
+        _mergeConsecutiveSimpleDivs(child);
+      }
+    }
+
+    // Merge "question div" + "div with text + nested block" (e.g. instruction + signature)
+    var children = element.children.toList();
+    var i = 0;
+    while (i < children.length - 1) {
+      final div1 = children[i];
+      final div2 = children[i + 1];
+      if (div1 is dom.Element &&
+          div2 is dom.Element &&
+          _shouldMergeWithDivContainingBlock(div1, div2)) {
+        _mergeSimpleWithDivContainingBlock(element, div1, div2);
+        children = element.children.toList();
+        continue;
+      }
+      i++;
+    }
+
+    children = element.children.toList();
+    i = 0;
+    while (i < children.length) {
+      final child = children[i];
+      if (child is! dom.Element || child.localName?.toLowerCase() != 'div') {
+        i++;
+        continue;
+      }
+
+      var runEnd = i + 1;
+      while (runEnd < children.length) {
+        final prev = children[runEnd - 1];
+        final c = children[runEnd];
+        if (c is! dom.Element ||
+            c.localName?.toLowerCase() != 'div' ||
+            !_shouldMergeConsecutiveDivs(prev as dom.Element, c)) {
+          break;
+        }
+        runEnd++;
+      }
+
+      if (runEnd - i > 1) {
+        final merged = dom.Element.tag('div');
+        for (var j = i; j < runEnd; j++) {
+          if (j > i) {
+            merged.append(dom.Element.tag('br'));
+          }
+          final div = children[j];
+          for (final node in div.nodes) {
+            merged.append(node.clone(true));
+          }
+        }
+        final ref = runEnd < children.length ? children[runEnd] : null;
+        for (var j = runEnd - 1; j >= i; j--) {
+          children[j].remove();
+        }
+        element.insertBefore(merged, ref);
+      }
+      i = runEnd;
+    }
+  }
+
   @override
   Document convert(String input) {
     final document = parse(input);
@@ -29,6 +203,9 @@ class DocumentHTMLDecoder extends Converter<String, Document> {
     if (body == null) {
       return Document.blank(withInitialText: false);
     }
+
+    // Merge consecutive simple divs (email clients use <div>line1</div><div>line2</div>)
+    _mergeConsecutiveSimpleDivs(body);
 
     ///This is used for temporarily handling documents copied from Google Docs,
     /// see [#6808](https://github.com/AppFlowy-IO/AppFlowy/issues/6808).
