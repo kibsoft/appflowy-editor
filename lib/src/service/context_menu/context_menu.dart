@@ -29,12 +29,25 @@ class ContextMenu extends StatelessWidget {
     required this.editorState,
     required this.items,
     required this.onPressed,
+    this.borderRadius = 12.0,
+    this.padding = const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+    this.itemPadding = const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
   });
 
   final Offset position;
   final EditorState editorState;
   final List<List<ContextMenuItem>> items;
   final VoidCallback onPressed;
+
+  /// Corner radius for the menu panel and each menu row ripple.
+  final double borderRadius;
+
+  /// Insets between the panel edge and the menu rows (affects shadow bounds).
+  final EdgeInsetsGeometry padding;
+
+  /// Insets around each row's label (horizontal inset changes text-to-edge gap
+  /// without changing how the outer shadow panel is sized).
+  final EdgeInsetsGeometry itemPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +69,7 @@ class ContextMenu extends StatelessWidget {
               return Material(
                 child: InkWell(
                   customBorder: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(borderRadius),
                   ),
                   onTap: () {
                     items[i][j].onPressed(editorState);
@@ -64,7 +77,7 @@ class ContextMenu extends StatelessWidget {
                   },
                   onHover: (value) => setState(() {}),
                   child: Padding(
-                    padding: const EdgeInsets.all(8.0),
+                    padding: itemPadding,
                     child: Text(
                       items[i][j].name,
                       textAlign: TextAlign.start,
@@ -85,7 +98,7 @@ class ContextMenu extends StatelessWidget {
       top: position.dy,
       left: position.dx,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        padding: padding,
         constraints: const BoxConstraints(
           minWidth: 140,
         ),
@@ -97,13 +110,16 @@ class ContextMenu extends StatelessWidget {
               color: Colors.black.withValues(alpha: 0.1),
             ),
           ],
-          borderRadius: BorderRadius.circular(6.0),
+          borderRadius: BorderRadius.circular(borderRadius),
         ),
-        child: IntrinsicWidth(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: children,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: IntrinsicWidth(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
+            ),
           ),
         ),
       ),
