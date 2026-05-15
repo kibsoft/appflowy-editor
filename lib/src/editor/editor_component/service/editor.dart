@@ -27,6 +27,8 @@ class AppFlowyEditor extends StatefulWidget {
     List<CommandShortcutEvent>? commandShortcutEvents,
     this.contextMenuBuilder,
     this.contentInsertionConfiguration,
+    this.autocorrect = true,
+    this.enableSuggestions = true,
     this.editable = true,
     this.autoFocus = false,
     this.focusedSelection,
@@ -184,6 +186,18 @@ class AppFlowyEditor extends StatefulWidget {
   /// {@macro flutter.widgets.editableText.contentInsertionConfiguration}
   final ContentInsertionConfiguration? contentInsertionConfiguration;
 
+  /// Whether to enable autocorrect for the editor's software keyboard
+  /// [TextInput] client (mobile and other platforms using IME).
+  ///
+  /// On iOS this also affects spell checking for that input field. Defaults
+  /// to true, matching [TextInputConfiguration].
+  final bool autocorrect;
+
+  /// Whether to enable keyboard suggestions (e.g. predictive text).
+  ///
+  /// Passed to [TextInputConfiguration.enableSuggestions]. Defaults to true.
+  final bool enableSuggestions;
+
   /// The style of the drop target.
   ///
   /// Defaults to [AppFlowyDropTargetStyle].
@@ -330,6 +344,8 @@ class _AppFlowyEditorState extends State<AppFlowyEditor> {
         commandShortcutEvents: widget.commandShortcutEvents,
         focusNode: widget.focusNode,
         contentInsertionConfiguration: widget.contentInsertionConfiguration,
+        autocorrect: widget.autocorrect,
+        enableSuggestions: widget.enableSuggestions,
         child: child,
       );
     }

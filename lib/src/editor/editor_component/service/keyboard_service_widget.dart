@@ -16,6 +16,8 @@ class KeyboardServiceWidget extends StatefulWidget {
     this.characterShortcutEvents = const [],
     this.focusNode,
     this.contentInsertionConfiguration,
+    this.autocorrect = true,
+    this.enableSuggestions = true,
     required this.child,
   });
 
@@ -23,6 +25,17 @@ class KeyboardServiceWidget extends StatefulWidget {
   final FocusNode? focusNode;
   final List<CommandShortcutEvent> commandShortcutEvents;
   final List<CharacterShortcutEvent> characterShortcutEvents;
+
+  /// Whether to enable autocorrect for the software keyboard [TextInput] client.
+  ///
+  /// Passed to [TextInputConfiguration.autocorrect]. On iOS this also affects
+  /// spell checking for that field.
+  final bool autocorrect;
+
+  /// Whether to show keyboard suggestions (e.g. predictive text strip).
+  ///
+  /// Passed to [TextInputConfiguration.enableSuggestions].
+  final bool enableSuggestions;
   final Widget child;
 
   @override
@@ -246,6 +259,8 @@ class KeyboardServiceWidgetState extends State<KeyboardServiceWidget>
           viewId: View.of(context).viewId,
           enableDeltaModel: false,
           inputType: TextInputType.multiline,
+          autocorrect: widget.autocorrect,
+          enableSuggestions: widget.enableSuggestions,
           textCapitalization: TextCapitalization.sentences,
           inputAction: TextInputAction.newline,
           keyboardAppearance: Theme.of(context).brightness,
