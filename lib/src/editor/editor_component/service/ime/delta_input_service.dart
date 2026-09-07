@@ -126,6 +126,9 @@ class DeltaTextInputService extends TextInputService with DeltaTextInputClient {
   void showToolbar() {}
 
   @override
+  bool onFocusReceived() => false;
+
+  @override
   void updateEditingValue(TextEditingValue value) {}
 
   @override

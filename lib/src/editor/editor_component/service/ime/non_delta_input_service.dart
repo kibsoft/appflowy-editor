@@ -184,6 +184,9 @@ class NonDeltaTextInputService extends TextInputService with TextInputClient {
   void showToolbar() {}
 
   @override
+  bool onFocusReceived() => false;
+
+  @override
   void updateFloatingCursor(RawFloatingCursorPoint point) {
     switch (point.state) {
       case FloatingCursorDragState.Start:
